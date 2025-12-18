@@ -1,0 +1,51 @@
+{
+  "name": "mirror-fn",
+  "version": "1.0.0",
+  "description": "One function. Both directions. Zero duplication. Bidirectional functions for TypeScript.",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun run build:bundle && bun run build:types",
+    "build:bundle": "bun build src/index.ts --outdir dist --target node --format esm && bun build src/index.ts --outdir dist --target node --format cjs --outfile dist/index.js",
+    "build:types": "tsc --emitDeclarationOnly --declaration --outDir dist",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "bidirectional",
+    "codec",
+    "lens",
+    "parser",
+    "serializer",
+    "isomorphism",
+    "invertible",
+    "functional",
+    "typescript"
+  ],
+  "author": "Lulzx",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lulzx/mirror.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Lulzx/mirror/issues"
+  },
+  "homepage": "https://github.com/Lulzx/mirror#readme",
+  "devDependencies": {
+    "@types/bun": "^1.2.6",
+    "typescript": "^5.7.0"
+  }
+}
