@@ -64,6 +64,10 @@ export function object<T extends Record<string, unknown>>(
       const backValue = schema[key]!.backward(obj[key]);
       if (typeof backValue === 'object' && backValue !== null) {
         result = { ...result, ...(backValue as Record<string, unknown>) };
+      } else if (backValue !== undefined) {
+        // Handle non-object backward values by storing them directly
+        // This enables simpler mirror compositions
+        result[key as string] = backValue;
       }
     }
     return result;
@@ -111,7 +115,9 @@ export function tuple<T extends Mirror<unknown, unknown>[]>(
 }
 
 /**
- * Pick specific keys from an object
+ * Pick specific keys from an object.
+ * LOSSY: Dropped fields cannot be recovered.
+ * Backward returns partial object - combine with original for full reconstruction.
  */
 export function pick<T extends Record<string, unknown>, K extends keyof T>(
   ...keys: K[]
@@ -124,13 +130,16 @@ export function pick<T extends Record<string, unknown>, K extends keyof T>(
       }
       return result;
     },
-    (obj) => obj as T,
-    { type: 'custom', data: { pick: keys } } as Meta
+    // Return partial - consumer should merge with source if needed
+    (partial) => partial as unknown as T,
+    { type: 'pick', keys: keys as string[], lossy: true }
   );
 }
 
 /**
- * Omit specific keys from an object
+ * Omit specific keys from an object.
+ * LOSSY: Omitted fields cannot be recovered.
+ * Backward returns partial object - combine with original for full reconstruction.
  */
 export function omit<T extends Record<string, unknown>, K extends keyof T>(
   ...keys: K[]
@@ -146,8 +155,9 @@ export function omit<T extends Record<string, unknown>, K extends keyof T>(
       }
       return result;
     },
-    (obj) => obj as T,
-    { type: 'custom', data: { omit: keys } } as Meta
+    // Return partial - consumer should merge with source if needed
+    (partial) => partial as unknown as T,
+    { type: 'omit', keys: keys as string[], lossy: true }
   );
 }
 
@@ -183,20 +193,21 @@ export function path<T>(...keys: string[]): Mirror<Record<string, unknown>, T> {
 
       return result;
     },
-    { type: 'custom', data: { path: keys } } as Meta
+    { type: 'prop', key: keys.join('.') }
   );
 }
 
 /**
- * Set a value at a lens position (immutable update)
+ * Set a value at a lens position (immutable update).
+ * Merges the backward result with the source object.
  */
-export function set<A, B>(
+export function set<A extends object, B>(
   lens: Mirror<A, B>,
   source: A,
   value: B
 ): A {
   const partial = lens.backward(value);
-  if (typeof source === 'object' && source !== null && typeof partial === 'object' && partial !== null) {
+  if (typeof partial === 'object' && partial !== null) {
     return { ...source, ...(partial as object) } as A;
   }
   return partial as A;
@@ -205,7 +216,7 @@ export function set<A, B>(
 /**
  * Modify a value at a lens position (immutable update)
  */
-export function over<A, B>(
+export function over<A extends object, B>(
   lens: Mirror<A, B>,
   source: A,
   fn: (value: B) => B
@@ -216,39 +227,94 @@ export function over<A, B>(
 
 /**
  * Entries: object ↔ [key, value][]
+ * Fully reversible.
  */
 export function entries<K extends string, V>(): Mirror<Record<K, V>, [K, V][]> {
   return new Mirror(
     (obj) => Object.entries(obj) as [K, V][],
     (entries) => Object.fromEntries(entries) as Record<K, V>,
-    { type: 'custom', data: { entries: true } } as Meta
+    { type: 'entries' }
   );
 }
 
 /**
  * Keys: object → keys[]
+ * LOSSY: Values are lost and cannot be recovered.
+ * Consider using `entries` for reversible key-value access.
  */
 export function keys<K extends string>(): Mirror<Record<K, unknown>, K[]> {
   return new Mirror(
     (obj) => Object.keys(obj) as K[],
-    (keys) => {
-      const result = {} as Record<K, unknown>;
-      for (const key of keys) {
-        result[key] = undefined;
-      }
-      return result;
+    (_keys): Record<K, unknown> => {
+      throw new Error('keys() backward is lossy: cannot recover original object values');
     },
-    { type: 'custom', data: { keys: true } } as Meta
+    { type: 'keys', lossy: true }
   );
 }
 
 /**
  * Values: object → values[]
+ * LOSSY: Keys are lost and cannot be recovered.
+ * Consider using `entries` for reversible key-value access.
  */
 export function values<V>(): Mirror<Record<string, V>, V[]> {
   return new Mirror(
     (obj) => Object.values(obj) as V[],
-    () => ({}) as Record<string, V>,
-    { type: 'custom', data: { values: true } } as Meta
+    (_values): Record<string, V> => {
+      throw new Error('values() backward is lossy: cannot recover original object keys');
+    },
+    { type: 'values', lossy: true }
+  );
+}
+
+/**
+ * Map object values while preserving keys.
+ * Fully reversible.
+ */
+export function mapValues<V, W>(
+  valueMirror: Mirror<V, W>
+): Mirror<Record<string, V>, Record<string, W>> {
+  return new Mirror(
+    (obj) => {
+      const result: Record<string, W> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        result[key] = valueMirror.forward(value as V);
+      }
+      return result;
+    },
+    (obj) => {
+      const result: Record<string, V> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        result[key] = valueMirror.backward(value as W);
+      }
+      return result;
+    },
+    { type: 'object', shape: {} }
+  );
+}
+
+/**
+ * Merge two objects. The second object's properties override the first.
+ */
+export function merge<A extends object, B extends object>(): Mirror<[A, B], A & B> {
+  return new Mirror(
+    ([a, b]) => ({ ...a, ...b }),
+    // Cannot unmerge - this is inherently lossy when keys overlap
+    (merged) => [merged as unknown as A, merged as unknown as B],
+    { type: 'custom', lossy: true }
+  );
+}
+
+/**
+ * Spread/collect: converts between { ...spread } and { collected }
+ * Use when you need to flatten/unflatten a specific key.
+ */
+export function spread<K extends string, V extends object>(
+  key: K
+): Mirror<Record<K, V>, V> {
+  return new Mirror(
+    (obj) => obj[key],
+    (value) => ({ [key]: value }) as Record<K, V>,
+    { type: 'prop', key }
   );
 }

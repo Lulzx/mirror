@@ -1,4 +1,4 @@
-import { Mirror } from './mirror';
+import { Mirror, identity } from './mirror';
 import type { Meta } from './types';
 
 /**
@@ -34,15 +34,38 @@ export function pipe<A, B, C, D, E, F, G>(
   m5: Mirror<E, F>,
   m6: Mirror<F, G>
 ): Mirror<A, G>;
+export function pipe<A, B, C, D, E, F, G, H>(
+  m1: Mirror<A, B>,
+  m2: Mirror<B, C>,
+  m3: Mirror<C, D>,
+  m4: Mirror<D, E>,
+  m5: Mirror<E, F>,
+  m6: Mirror<F, G>,
+  m7: Mirror<G, H>
+): Mirror<A, H>;
+export function pipe<A, B, C, D, E, F, G, H, I>(
+  m1: Mirror<A, B>,
+  m2: Mirror<B, C>,
+  m3: Mirror<C, D>,
+  m4: Mirror<D, E>,
+  m5: Mirror<E, F>,
+  m6: Mirror<F, G>,
+  m7: Mirror<G, H>,
+  m8: Mirror<H, I>
+): Mirror<A, I>;
 export function pipe(...mirrors: Mirror<unknown, unknown>[]): Mirror<unknown, unknown>;
 export function pipe(...mirrors: Mirror<unknown, unknown>[]): Mirror<unknown, unknown> {
+  // Empty pipe returns identity mirror
   if (mirrors.length === 0) {
-    throw new Error('pipe requires at least one mirror');
+    return identity<unknown>();
   }
 
   if (mirrors.length === 1) {
     return mirrors[0]!;
   }
+
+  // Check if any stage is lossy
+  const hasLossy = mirrors.some(m => m.meta.lossy);
 
   const forward = (a: unknown): unknown => {
     let result = a;
@@ -63,6 +86,7 @@ export function pipe(...mirrors: Mirror<unknown, unknown>[]): Mirror<unknown, un
   return new Mirror(forward, backward, {
     type: 'pipe',
     stages: mirrors.map((m) => m.meta),
+    lossy: hasLossy,
   });
 }
 
@@ -80,6 +104,7 @@ export function all<T extends Record<string, Mirror<unknown, unknown>>>(
   type B = { [K in keyof T]: T[K] extends Mirror<unknown, infer X> ? X : never };
 
   const keys = Object.keys(mirrors) as (keyof T)[];
+  const hasLossy = keys.some(k => mirrors[k]!.meta.lossy);
 
   const forward = (a: A): B => {
     const result = {} as B;
@@ -109,13 +134,14 @@ export function all<T extends Record<string, Mirror<unknown, unknown>>>(
   return new Mirror(forward, backward, {
     type: 'all',
     mirrors: shape,
+    lossy: hasLossy,
   }) as Mirror<A, B>;
 }
 
 /**
  * Conditional: try each mirror in order, use first one that succeeds.
  * Forward: tries each mirror until one succeeds
- * Backward: uses the first mirror for backward (by convention)
+ * Backward: tries each mirror until one succeeds
  */
 export function oneOf<A, B>(...mirrors: Mirror<A, B>[]): Mirror<A, B> {
   if (mirrors.length === 0) {
@@ -178,6 +204,47 @@ export function lazy<A, B>(getMirror: () => Mirror<A, B>): Mirror<A, B> {
   return new Mirror(
     (a: A) => get().forward(a),
     (b: B) => get().backward(b),
-    { type: 'custom', data: { lazy: true } } as Meta
+    { type: 'custom' }
+  );
+}
+
+/**
+ * Branch based on a predicate.
+ * If predicate returns true, use `then` mirror, otherwise use `else` mirror.
+ */
+export function branch<A, B>(
+  predicate: (a: A) => boolean,
+  thenMirror: Mirror<A, B>,
+  elseMirror: Mirror<A, B>
+): Mirror<A, B> {
+  return new Mirror(
+    (a: A) => predicate(a) ? thenMirror.forward(a) : elseMirror.forward(a),
+    // For backward, try both and use first success
+    (b: B) => {
+      const thenResult = thenMirror.tryBackward(b);
+      if (thenResult.ok) return thenResult.value;
+      return elseMirror.backward(b);
+    },
+    { type: 'oneOf', options: [thenMirror.meta, elseMirror.meta] }
+  );
+}
+
+/**
+ * Filter: only allow values matching a predicate through.
+ * Non-matching values throw an error.
+ */
+export function filter<A>(
+  predicate: (a: A) => boolean,
+  message?: string
+): Mirror<A, A> {
+  return new Mirror(
+    (a: A) => {
+      if (!predicate(a)) {
+        throw new Error(message ?? 'Value did not match filter predicate');
+      }
+      return a;
+    },
+    (a: A) => a,
+    { type: 'custom' }
   );
 }

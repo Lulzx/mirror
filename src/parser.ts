@@ -1,5 +1,4 @@
 import { Mirror } from './mirror';
-import type { Meta } from './types';
 
 /**
  * Literal: matches an exact string.
@@ -23,20 +22,22 @@ export function literal<T extends string>(value: T): Mirror<string, string> {
  * Regex capture: matches a pattern and captures the match.
  * Forward: captures the match, returns remaining input as tuple
  * Backward: prepends the captured value
+ *
+ * Uses sticky flag for reliable matching at string start.
  */
 export function regex(
   pattern: RegExp,
   generator?: () => string
 ): Mirror<string, { match: string; rest: string }> {
-  const anchored = pattern.source.startsWith('^')
-    ? pattern
-    : new RegExp(`^${pattern.source}`, pattern.flags);
+  // Create a sticky version of the pattern for reliable start-anchored matching
+  const stickyPattern = new RegExp(pattern.source, pattern.flags.includes('y') ? pattern.flags : pattern.flags + 'y');
 
   return new Mirror(
     (input) => {
-      const match = input.match(anchored);
+      stickyPattern.lastIndex = 0;
+      const match = stickyPattern.exec(input);
       if (!match) {
-        throw new Error(`Pattern ${pattern} did not match at start of "${input.slice(0, 20)}..."`);
+        throw new Error(`Pattern ${pattern} did not match at start of "${input.slice(0, 20)}${input.length > 20 ? '...' : ''}"`);
       }
       return {
         match: match[0],
@@ -146,6 +147,7 @@ export function sequence(
 
 /**
  * Separated by: parses items separated by a delimiter.
+ * Handles edge cases: empty input, trailing separators.
  */
 export function sepBy<T>(
   item: Mirror<string, { match: string; rest: string }>,
@@ -161,12 +163,23 @@ export function sepBy<T>(
       let current = input;
 
       while (current.length > 0) {
-        const parsed = item.forward(current);
-        results.push(parsed.match as T);
-        current = parsed.rest;
+        // Try to parse an item
+        const itemResult = item.tryForward(current);
+        if (!itemResult.ok) {
+          // If we can't parse an item, we're done
+          break;
+        }
 
+        results.push(itemResult.value.match as T);
+        current = itemResult.value.rest;
+
+        // Check for separator
         if (current.startsWith(separator)) {
           current = current.slice(separator.length);
+          // Handle trailing separator - if nothing left, we're done
+          if (current.length === 0) {
+            break;
+          }
         } else {
           break;
         }
@@ -225,7 +238,7 @@ export function route<T extends Record<string, string>>(
       }
       return result;
     },
-    { type: 'custom', data: { route: template } } as Meta
+    { type: 'route', template }
   );
 }
 
@@ -244,9 +257,18 @@ export function queryString<T extends Record<string, string>>(): Mirror<string, 
 
       const pairs = queryPart.split('&');
       for (const pair of pairs) {
-        const [key, value] = pair.split('=');
-        if (key) {
-          (result as Record<string, string>)[key] = decodeURIComponent(value ?? '');
+        const eqIndex = pair.indexOf('=');
+        if (eqIndex === -1) {
+          // Handle keys without values
+          if (pair) {
+            (result as Record<string, string>)[pair] = '';
+          }
+        } else {
+          const key = pair.slice(0, eqIndex);
+          const value = pair.slice(eqIndex + 1);
+          if (key) {
+            (result as Record<string, string>)[key] = decodeURIComponent(value);
+          }
         }
       }
       return result;
@@ -263,7 +285,7 @@ export function queryString<T extends Record<string, string>>(): Mirror<string, 
           .join('&')
       );
     },
-    { type: 'custom', data: { queryString: true } } as Meta
+    { type: 'queryString' }
   );
 }
 
@@ -279,10 +301,13 @@ export function urlParser<
 
   return new Mirror(
     (input) => {
-      const [path, query] = input.split('?');
+      const qIndex = input.indexOf('?');
+      const [path, query] = qIndex === -1
+        ? [input, '']
+        : [input.slice(0, qIndex), input.slice(qIndex)];
       return {
-        route: routeMirror.forward(path!),
-        query: queryMirror.forward(query ? `?${query}` : ''),
+        route: routeMirror.forward(path),
+        query: queryMirror.forward(query),
       };
     },
     ({ route: r, query }) => {
@@ -290,7 +315,7 @@ export function urlParser<
       const qs = queryMirror.backward(query);
       return path + qs;
     },
-    { type: 'custom', data: { url: template } } as Meta
+    { type: 'route', template }
   );
 }
 
@@ -301,7 +326,7 @@ export function split(delimiter: string): Mirror<string, string[]> {
   return new Mirror(
     (input) => (input.length === 0 ? [] : input.split(delimiter)),
     (arr) => arr.join(delimiter),
-    { type: 'custom', data: { split: delimiter } } as Meta
+    { type: 'split', delimiter }
   );
 }
 
@@ -330,7 +355,7 @@ export function suffix(value: string): Mirror<string, string> {
       if (!input.endsWith(value)) {
         throw new Error(`Expected suffix "${value}"`);
       }
-      return input.slice(0, -value.length);
+      return input.slice(0, -value.length || undefined);
     },
     (rest) => rest + value,
     { type: 'literal', value }
@@ -352,9 +377,63 @@ export function between(
       if (!input.endsWith(end)) {
         throw new Error(`Expected end delimiter "${end}"`);
       }
-      return input.slice(start.length, -end.length);
+      return input.slice(start.length, -end.length || undefined);
     },
     (content) => start + content + end,
-    { type: 'custom', data: { between: [start, end] } } as Meta
+    { type: 'between', start, end }
+  );
+}
+
+/**
+ * Many: parses zero or more occurrences of a pattern.
+ */
+export function many<T>(
+  item: Mirror<string, { match: T; rest: string }>
+): Mirror<string, T[]> {
+  return new Mirror(
+    (input) => {
+      const results: T[] = [];
+      let current = input;
+
+      while (current.length > 0) {
+        const result = item.tryForward(current);
+        if (!result.ok) break;
+        results.push(result.value.match);
+        current = result.value.rest;
+      }
+
+      return results;
+    },
+    (values) => values.map(v => String(v)).join(''),
+    { type: 'array', items: item.meta }
+  );
+}
+
+/**
+ * Many1: parses one or more occurrences of a pattern.
+ */
+export function many1<T>(
+  item: Mirror<string, { match: T; rest: string }>
+): Mirror<string, T[]> {
+  return new Mirror(
+    (input) => {
+      const results: T[] = [];
+      let current = input;
+
+      while (current.length > 0) {
+        const result = item.tryForward(current);
+        if (!result.ok) break;
+        results.push(result.value.match);
+        current = result.value.rest;
+      }
+
+      if (results.length === 0) {
+        throw new Error('Expected at least one match');
+      }
+
+      return results;
+    },
+    (values) => values.map(v => String(v)).join(''),
+    { type: 'array', items: item.meta, minItems: 1 }
   );
 }

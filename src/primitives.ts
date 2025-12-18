@@ -1,12 +1,22 @@
 import { Mirror } from './mirror';
 
 /**
- * String primitive: any ↔ string
+ * String primitive: string ↔ string (identity for strings)
+ * For converting other types to string, use `toString` instead.
  */
-export const string: Mirror<unknown, string> = new Mirror(
-  (x) => String(x),
+export const string: Mirror<string, string> = new Mirror(
+  (x) => x,
   (s) => s,
   { type: 'string' }
+);
+
+/**
+ * ToString: converts any value to string (lossy - cannot recover original type)
+ */
+export const toString: Mirror<unknown, string> = new Mirror(
+  (x) => String(x),
+  (s) => s,
+  { type: 'string', lossy: true }
 );
 
 /**
@@ -84,7 +94,7 @@ export const date: Mirror<string, Date> = new Mirror(
 );
 
 /**
- * Base64 primitive: string ↔ decoded string
+ * Base64 primitive: base64 string ↔ decoded string
  */
 export const base64: Mirror<string, string> = new Mirror(
   (s) => {
@@ -108,7 +118,7 @@ export const base64: Mirror<string, string> = new Mirror(
 export const url: Mirror<string, URL> = new Mirror(
   (s) => new URL(s),
   (u) => u.toString(),
-  { type: 'custom', data: { format: 'url' } } as any
+  { type: 'url' }
 );
 
 /**
@@ -117,7 +127,7 @@ export const url: Mirror<string, URL> = new Mirror(
 export const bigint: Mirror<string, bigint> = new Mirror(
   (s) => BigInt(s),
   (n) => n.toString(),
-  { type: 'custom', data: { format: 'bigint' } } as any
+  { type: 'bigint' }
 );
 
 /**
@@ -132,7 +142,7 @@ export const hex: Mirror<string, number> = new Mirror(
     return n;
   },
   (n) => n.toString(16),
-  { type: 'custom', data: { format: 'hex' } } as any
+  { type: 'hex' }
 );
 
 /**
@@ -147,5 +157,5 @@ export const binary: Mirror<string, number> = new Mirror(
     return n;
   },
   (n) => n.toString(2),
-  { type: 'custom', data: { format: 'binary' } } as any
+  { type: 'binary' }
 );

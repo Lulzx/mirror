@@ -10,6 +10,10 @@ export type MetaType =
   | 'date'
   | 'json'
   | 'base64'
+  | 'url'
+  | 'bigint'
+  | 'hex'
+  | 'binary'
   | 'identity'
   | 'pipe'
   | 'object'
@@ -27,11 +31,25 @@ export type MetaType =
   | 'sepBy'
   | 'all'
   | 'oneOf'
+  | 'pick'
+  | 'omit'
+  | 'entries'
+  | 'keys'
+  | 'values'
+  | 'split'
+  | 'between'
+  | 'route'
+  | 'queryString'
   | 'custom';
 
 export interface BaseMeta {
   type: MetaType;
   description?: string;
+  /**
+   * Indicates this mirror is lossy - backward(forward(x)) may not equal x.
+   * Lossy mirrors should be used with care in pipelines.
+   */
+  lossy?: boolean;
 }
 
 export interface StringMeta extends BaseMeta {
@@ -64,6 +82,22 @@ export interface JsonMeta extends BaseMeta {
 
 export interface Base64Meta extends BaseMeta {
   type: 'base64';
+}
+
+export interface UrlMeta extends BaseMeta {
+  type: 'url';
+}
+
+export interface BigIntMeta extends BaseMeta {
+  type: 'bigint';
+}
+
+export interface HexMeta extends BaseMeta {
+  type: 'hex';
+}
+
+export interface BinaryMeta extends BaseMeta {
+  type: 'binary';
 }
 
 export interface IdentityMeta extends BaseMeta {
@@ -159,6 +193,48 @@ export interface OneOfMeta extends BaseMeta {
   options: Meta[];
 }
 
+export interface PickMeta extends BaseMeta {
+  type: 'pick';
+  keys: string[];
+}
+
+export interface OmitMeta extends BaseMeta {
+  type: 'omit';
+  keys: string[];
+}
+
+export interface EntriesMeta extends BaseMeta {
+  type: 'entries';
+}
+
+export interface KeysMeta extends BaseMeta {
+  type: 'keys';
+}
+
+export interface ValuesMeta extends BaseMeta {
+  type: 'values';
+}
+
+export interface SplitMeta extends BaseMeta {
+  type: 'split';
+  delimiter: string;
+}
+
+export interface BetweenMeta extends BaseMeta {
+  type: 'between';
+  start: string;
+  end: string;
+}
+
+export interface RouteMeta extends BaseMeta {
+  type: 'route';
+  template: string;
+}
+
+export interface QueryStringMeta extends BaseMeta {
+  type: 'queryString';
+}
+
 export interface CustomMeta extends BaseMeta {
   type: 'custom';
   data?: unknown;
@@ -172,6 +248,10 @@ export type Meta =
   | DateMeta
   | JsonMeta
   | Base64Meta
+  | UrlMeta
+  | BigIntMeta
+  | HexMeta
+  | BinaryMeta
   | IdentityMeta
   | PipeMeta
   | ObjectMeta
@@ -189,6 +269,15 @@ export type Meta =
   | SepByMeta
   | AllMeta
   | OneOfMeta
+  | PickMeta
+  | OmitMeta
+  | EntriesMeta
+  | KeysMeta
+  | ValuesMeta
+  | SplitMeta
+  | BetweenMeta
+  | RouteMeta
+  | QueryStringMeta
   | CustomMeta;
 
 /**
@@ -220,4 +309,5 @@ export interface JsonSchema {
   oneOf?: JsonSchema[];
   allOf?: JsonSchema[];
   description?: string;
+  readOnly?: boolean;
 }

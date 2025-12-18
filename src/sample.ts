@@ -73,6 +73,18 @@ export function sampleFromMeta(meta: Meta): unknown {
     case 'base64':
       return btoa(randomString(8));
 
+    case 'url':
+      return `https://example.com/${randomString(6)}`;
+
+    case 'bigint':
+      return BigInt(randomInt(0, 1000000));
+
+    case 'hex':
+      return randomInt(0, 255).toString(16);
+
+    case 'binary':
+      return randomInt(0, 255).toString(2);
+
     case 'identity':
       return null;
 
@@ -166,6 +178,31 @@ export function sampleFromMeta(meta: Meta): unknown {
 
     case 'sepBy':
       return [];
+
+    case 'split':
+      return [randomString(4), randomString(4)];
+
+    case 'between':
+      return randomString(6);
+
+    case 'route':
+      return { id: randomString(6) };
+
+    case 'queryString':
+      return { key: randomString(4) };
+
+    case 'pick':
+    case 'omit':
+      return {};
+
+    case 'entries':
+      return [[randomString(4), randomString(4)]];
+
+    case 'keys':
+      return [randomString(4)];
+
+    case 'values':
+      return [randomString(4)];
 
     case 'all': {
       const allMeta = meta as AllMeta;

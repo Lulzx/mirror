@@ -58,6 +58,18 @@ export function metaToJsonSchema(meta: Meta): JsonSchema {
     case 'base64':
       return { ...base, type: 'string', format: 'byte' };
 
+    case 'url':
+      return { ...base, type: 'string', format: 'uri' };
+
+    case 'bigint':
+      return { ...base, type: 'string', pattern: '^-?\\d+$' };
+
+    case 'hex':
+      return { ...base, type: 'string', pattern: '^[0-9a-fA-F]+$' };
+
+    case 'binary':
+      return { ...base, type: 'string', pattern: '^[01]+$' };
+
     case 'identity':
       return base;
 
@@ -189,6 +201,29 @@ export function metaToJsonSchema(meta: Meta): JsonSchema {
     case 'sepBy':
       return { ...base, type: 'array', items: { type: 'string' } };
 
+    case 'split':
+      return { ...base, type: 'array', items: { type: 'string' } };
+
+    case 'between':
+      return { ...base, type: 'string' };
+
+    case 'route':
+      return { ...base, type: 'object' };
+
+    case 'queryString':
+      return { ...base, type: 'object' };
+
+    case 'pick':
+    case 'omit':
+      return { ...base, type: 'object' };
+
+    case 'entries':
+      return { ...base, type: 'array', items: { type: 'array', items: { type: 'string' } } };
+
+    case 'keys':
+    case 'values':
+      return { ...base, type: 'array', items: { type: 'string' } };
+
     case 'all': {
       const allMeta = meta as AllMeta;
       const properties: Record<string, JsonSchema> = {};
@@ -237,11 +272,18 @@ function metaToTsType(meta: Meta): string {
   switch (meta.type) {
     case 'string':
     case 'base64':
+    case 'url':
+    case 'hex':
+    case 'binary':
     case 'literal':
     case 'regex':
     case 'pattern':
     case 'length':
+    case 'between':
       return 'string';
+
+    case 'bigint':
+      return 'bigint';
 
     case 'number':
     case 'integer':
@@ -315,6 +357,24 @@ function metaToTsType(meta: Meta): string {
       const oneOfMeta = meta as OneOfMeta;
       return oneOfMeta.options.map(metaToTsType).join(' | ');
     }
+
+    case 'split':
+    case 'keys':
+    case 'values':
+      return 'string[]';
+
+    case 'entries':
+      return '[string, unknown][]';
+
+    case 'route':
+    case 'queryString':
+    case 'pick':
+    case 'omit':
+      return 'Record<string, unknown>';
+
+    case 'seq':
+    case 'sepBy':
+      return 'unknown';
 
     default:
       return 'unknown';

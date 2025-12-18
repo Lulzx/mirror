@@ -1,9 +1,34 @@
 import { Mirror } from './mirror';
 
 /**
+ * Deep equality check for comparing default values
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== 'object' || typeof b !== 'object') return false;
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((val, i) => deepEqual(val, b[i]));
+  }
+
+  if (Array.isArray(a) || Array.isArray(b)) return false;
+
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+
+  return keysA.every(key =>
+    Object.prototype.hasOwnProperty.call(b, key) &&
+    deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
+  );
+}
+
+/**
  * Range constraint for numbers.
  * Forward: validates number is in range
- * Backward: identity (clamps if needed)
+ * Backward: clamps to range
  */
 export function range(min: number, max: number): Mirror<number, number> {
   return new Mirror(
@@ -90,6 +115,7 @@ export function nullable<A, B>(
 
 /**
  * Optional wrapper: allows undefined values with a default.
+ * Uses deep equality for comparing with default value.
  */
 export function optional<A, B>(
   inner: Mirror<A, B>,
@@ -97,7 +123,7 @@ export function optional<A, B>(
 ): Mirror<A | undefined, B> {
   return new Mirror(
     (a) => (a === undefined ? defaultValue : inner.forward(a)),
-    (b) => (b === defaultValue ? undefined : inner.backward(b)),
+    (b) => (deepEqual(b, defaultValue) ? undefined : inner.backward(b)),
     { type: 'optional', inner: inner.meta, defaultValue }
   );
 }
@@ -147,7 +173,7 @@ export function nonEmptyArray<T>(): Mirror<T[], T[]> {
 }
 
 /**
- * Positive number constraint.
+ * Positive number constraint (n > 0).
  */
 export const positive: Mirror<number, number> = new Mirror(
   (n) => {
@@ -157,11 +183,11 @@ export const positive: Mirror<number, number> = new Mirror(
     return n;
   },
   (n) => Math.max(1, n),
-  { type: 'range', min: 0, max: Infinity }
+  { type: 'range', min: 1, max: Infinity }
 );
 
 /**
- * Non-negative number constraint.
+ * Non-negative number constraint (n >= 0).
  */
 export const nonNegative: Mirror<number, number> = new Mirror(
   (n) => {
@@ -204,29 +230,32 @@ export const isFinite: Mirror<number, number> = new Mirror(
 
 /**
  * Trim whitespace from strings.
+ * LOSSY: Original whitespace cannot be recovered.
  */
 export const trim: Mirror<string, string> = new Mirror(
   (s) => s.trim(),
   (s) => s,
-  { type: 'string' }
+  { type: 'string', lossy: true }
 );
 
 /**
  * Lowercase strings.
+ * LOSSY: Original casing cannot be recovered.
  */
 export const lowercase: Mirror<string, string> = new Mirror(
   (s) => s.toLowerCase(),
   (s) => s,
-  { type: 'string' }
+  { type: 'string', lossy: true }
 );
 
 /**
  * Uppercase strings.
+ * LOSSY: Original casing cannot be recovered.
  */
 export const uppercase: Mirror<string, string> = new Mirror(
   (s) => s.toUpperCase(),
   (s) => s,
-  { type: 'string' }
+  { type: 'string', lossy: true }
 );
 
 /**
@@ -258,3 +287,53 @@ export const alphanumeric = pattern(
   /^[a-zA-Z0-9]+$/,
   () => `abc${Math.floor(Math.random() * 1000)}`
 );
+
+/**
+ * Clamp a number to a range without throwing on invalid input.
+ * Unlike `range`, this never throws - it always clamps.
+ */
+export function clamp(min: number, max: number): Mirror<number, number> {
+  return new Mirror(
+    (n) => Math.max(min, Math.min(max, n)),
+    (n) => Math.max(min, Math.min(max, n)),
+    { type: 'range', min, max }
+  );
+}
+
+/**
+ * Validate with a custom predicate.
+ */
+export function validate<T>(
+  predicate: (value: T) => boolean,
+  message: string | ((value: T) => string)
+): Mirror<T, T> {
+  return new Mirror(
+    (v) => {
+      if (!predicate(v)) {
+        throw new Error(typeof message === 'function' ? message(v) : message);
+      }
+      return v;
+    },
+    (v) => v,
+    { type: 'custom' }
+  );
+}
+
+/**
+ * Refine a type with a type guard.
+ */
+export function refine<T, U extends T>(
+  guard: (value: T) => value is U,
+  message: string
+): Mirror<T, U> {
+  return new Mirror(
+    (v) => {
+      if (!guard(v)) {
+        throw new Error(message);
+      }
+      return v;
+    },
+    (v) => v,
+    { type: 'custom' }
+  );
+}

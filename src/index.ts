@@ -7,11 +7,22 @@
  */
 
 // Core
-export { Mirror, mirror, identity, lossy, asymmetric } from './mirror';
+export {
+  Mirror,
+  mirror,
+  identity,
+  lossy,
+  asymmetric,
+  assertSectionLaw,
+  assertRetractionLaw,
+  assertIsomorphism,
+  testMirror,
+} from './mirror';
 
 // Primitives
 export {
   string,
+  toString,
   number,
   integer,
   boolean,
@@ -26,7 +37,7 @@ export {
 } from './primitives';
 
 // Composition
-export { pipe, all, oneOf, fallback, lazy } from './composition';
+export { pipe, all, oneOf, fallback, lazy, branch, filter } from './composition';
 
 // Object manipulation
 export {
@@ -42,6 +53,9 @@ export {
   entries,
   keys,
   values,
+  mapValues,
+  merge,
+  spread,
 } from './object';
 
 // Constraints
@@ -66,6 +80,9 @@ export {
   uuid,
   slug,
   alphanumeric,
+  clamp,
+  validate,
+  refine,
 } from './constraints';
 
 // Parser combinators
@@ -83,6 +100,8 @@ export {
   prefix,
   suffix,
   between,
+  many,
+  many1,
 } from './parser';
 
 // Metadata utilities
@@ -102,6 +121,10 @@ export type {
   DateMeta,
   JsonMeta,
   Base64Meta,
+  UrlMeta,
+  BigIntMeta,
+  HexMeta,
+  BinaryMeta,
   IdentityMeta,
   PipeMeta,
   ObjectMeta,
@@ -119,6 +142,15 @@ export type {
   SepByMeta,
   AllMeta,
   OneOfMeta,
+  PickMeta,
+  OmitMeta,
+  EntriesMeta,
+  KeysMeta,
+  ValuesMeta,
+  SplitMeta,
+  BetweenMeta,
+  RouteMeta,
+  QueryStringMeta,
   CustomMeta,
 } from './types';
 
@@ -126,7 +158,7 @@ export type {
 export type { ObjectSchema } from './object';
 
 // Default export for convenience
-import { Mirror, mirror, identity } from './mirror';
+import { Mirror, mirror, identity, assertSectionLaw, assertRetractionLaw, assertIsomorphism, testMirror } from './mirror';
 import * as primitives from './primitives';
 import * as composition from './composition';
 import * as objectOps from './object';
@@ -135,16 +167,19 @@ import * as parser from './parser';
 
 /**
  * Main namespace containing all mirror utilities.
- * Can be used as `m.pipe(m.json, m.prop('user'))` for cleaner syntax.
  */
 const m = {
-  // Core
   Mirror,
   mirror,
   identity,
+  assertSectionLaw,
+  assertRetractionLaw,
+  assertIsomorphism,
+  testMirror,
 
   // Primitives
   string: primitives.string,
+  toString: primitives.toString,
   number: primitives.number,
   integer: primitives.integer,
   boolean: primitives.boolean,
@@ -163,6 +198,8 @@ const m = {
   oneOf: composition.oneOf,
   fallback: composition.fallback,
   lazy: composition.lazy,
+  branch: composition.branch,
+  filter: composition.filter,
 
   // Object manipulation
   prop: objectOps.prop,
@@ -177,6 +214,9 @@ const m = {
   entries: objectOps.entries,
   keys: objectOps.keys,
   values: objectOps.values,
+  mapValues: objectOps.mapValues,
+  merge: objectOps.merge,
+  spread: objectOps.spread,
 
   // Constraints
   range: constraints.range,
@@ -199,6 +239,9 @@ const m = {
   uuid: constraints.uuid,
   slug: constraints.slug,
   alphanumeric: constraints.alphanumeric,
+  clamp: constraints.clamp,
+  validate: constraints.validate,
+  refine: constraints.refine,
 
   // Parser combinators
   literal: parser.literal,
@@ -214,6 +257,8 @@ const m = {
   prefix: parser.prefix,
   suffix: parser.suffix,
   between: parser.between,
+  many: parser.many,
+  many1: parser.many1,
 };
 
 export default m;

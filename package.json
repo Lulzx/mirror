@@ -1,6 +1,6 @@
 {
   "name": "mirror-fn",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "description": "One function. Both directions. Zero duplication. Bidirectional functions for TypeScript.",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

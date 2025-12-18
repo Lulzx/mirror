@@ -2,7 +2,7 @@
 
 **One function. Both directions. Zero duplication.**
 
-Mirror is a lightweight TypeScript library that introduces *bidirectional functions*—single definitions that execute forward or backward, with composition that preserves bidirectionality automatically.
+Mirror is a TypeScript library for bidirectional functions: single definitions that execute forward or backward, with composition that preserves bidirectionality automatically.
 
 ```typescript
 import m from 'mirror-fn';
@@ -68,13 +68,14 @@ pipeline.backward(c);  // f.backward(g.backward(h.backward(c)))
 ### Primitives
 
 ```typescript
-m.string      // any ↔ string
+m.string      // string ↔ string (identity)
+m.toString    // any → string (lossy)
 m.number      // string ↔ number
 m.integer     // string ↔ integer
 m.boolean     // string ↔ boolean
 m.json        // string ↔ unknown
 m.date        // string ↔ Date
-m.base64      // base64 string ↔ decoded string
+m.base64      // base64 ↔ decoded string
 m.url         // string ↔ URL
 m.hex         // hex string ↔ number
 m.binary      // binary string ↔ number
@@ -83,119 +84,69 @@ m.binary      // binary string ↔ number
 ### Composition
 
 ```typescript
-// Sequential composition
-m.pipe(m1, m2, m3)
-
-// Parallel composition (for independent fields)
-m.all({ a: m1, b: m2 })
-
-// Conditional (first match wins)
-m.oneOf(m1, m2, m3)
-
-// Fallback
-m.fallback(primary, backup)
-
-// Lazy evaluation (for recursive types)
-m.lazy(() => recursiveMirror)
+m.pipe(m1, m2, m3)              // sequential
+m.all({ a: m1, b: m2 })         // parallel
+m.oneOf(m1, m2, m3)             // first match wins
+m.fallback(primary, backup)     // try primary, then backup
+m.lazy(() => recursiveMirror)   // lazy evaluation
+m.branch(predicate, then, else) // conditional
+m.filter(predicate, message)    // validation filter
 ```
 
 ### Object Manipulation
 
 ```typescript
-// Property access lens
-m.prop('fieldName')
-m.prop('nested', m.prop('deep'))
-
-// Object schema
-m.object({
-  id: m.pipe(m.prop('id'), m.string),
-  count: m.pipe(m.prop('count'), m.integer)
-})
-
-// Array mapping
-m.array(itemMirror)
-
-// Tuple mapping
-m.tuple(m1, m2, m3)
-
-// Pick/omit fields
-m.pick('a', 'b')
-m.omit('c', 'd')
-
-// Deep path access
-m.path('a', 'b', 'c')  // accesses obj.a.b.c
-
-// Immutable updates
-m.set(lens, source, value)
-m.over(lens, source, fn)
+m.prop('fieldName')             // property lens
+m.object({ id: m.prop('id') })  // object schema
+m.array(itemMirror)             // array mapping
+m.tuple(m1, m2, m3)             // tuple mapping
+m.pick('a', 'b')                // pick fields (lossy)
+m.omit('c', 'd')                // omit fields (lossy)
+m.path('a', 'b', 'c')           // deep path access
+m.entries()                     // object ↔ [key, value][]
+m.mapValues(mirror)             // map object values
+m.set(lens, source, value)      // immutable set
+m.over(lens, source, fn)        // immutable update
 ```
 
 ### Constraints
 
 ```typescript
-m.range(0, 100)           // constrain numbers
-m.length(1, 255)          // constrain string length
-m.pattern(/regex/)        // constrain string format
-m.oneOfValues('a', 'b')   // enum constraint
-m.nullable(inner)         // allow null
-m.optional(inner, def)    // allow undefined with default
-m.withDefault(inner, def) // use default for null/undefined
+m.range(0, 100)             // number range
+m.clamp(0, 100)             // clamp without throwing
+m.length(1, 255)            // string length
+m.pattern(/regex/)          // string format
+m.oneOfValues('a', 'b')     // enum
+m.nullable(inner)           // allow null
+m.optional(inner, default)  // allow undefined
+m.validate(predicate, msg)  // custom validation
+m.refine(guard, msg)        // type refinement
 
 // Built-in validators
-m.nonEmpty                // non-empty string
-m.positive                // positive number
-m.nonNegative             // non-negative number
-m.isInteger               // integer check
-m.isFinite                // finite number check
+m.nonEmpty, m.positive, m.nonNegative, m.isInteger, m.isFinite
 
-// String transforms
-m.trim
-m.lowercase
-m.uppercase
+// String transforms (lossy)
+m.trim, m.lowercase, m.uppercase
 
 // Common patterns
-m.email                   // email format
-m.uuid                    // UUID format
-m.slug                    // URL slug format
-m.alphanumeric            // alphanumeric only
+m.email, m.uuid, m.slug, m.alphanumeric
 ```
 
 ### Parser Combinators
 
 ```typescript
-// Exact string match
-m.literal('https://')
-
-// Regex capture
-m.regex(/[^\/]+/)
-
-// Named capture
-m.capture('userId', /\d+/)
-
-// Sequential parsing
-m.seq(
-  m.literal('/users/'),
-  ['userId', m.regex(/\d+/)],
-  m.literal('/posts')
-)
-
-// Separated list
-m.sepBy(item, ',')
-
-// URL routing
-m.route('/users/:userId/posts/:postId')
-
-// Query string
-m.queryString()
-
-// Full URL parser
-m.urlParser('/users/:id')
-
-// String utilities
-m.split(',')
-m.prefix('https://')
-m.suffix('.json')
-m.between('[', ']')
+m.literal('https://')                   // exact match
+m.regex(/[^\/]+/)                       // regex capture
+m.capture('userId', /\d+/)              // named capture
+m.seq(m.literal('/'), ['id', m.regex(/\d+/)])  // sequence
+m.sepBy(item, ',')                      // separated list
+m.many(item), m.many1(item)             // zero+ or one+ matches
+m.route('/users/:userId/posts/:postId') // URL routing
+m.queryString()                         // query string
+m.urlParser('/users/:id')               // full URL parser
+m.split(',')                            // split string
+m.prefix('https://'), m.suffix('.json') // prefix/suffix
+m.between('[', ']')                     // between delimiters
 ```
 
 ### Derived Capabilities
