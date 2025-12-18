@@ -272,9 +272,6 @@ function metaToTsType(meta: Meta): string {
   switch (meta.type) {
     case 'string':
     case 'base64':
-    case 'url':
-    case 'hex':
-    case 'binary':
     case 'literal':
     case 'regex':
     case 'pattern':
@@ -282,12 +279,17 @@ function metaToTsType(meta: Meta): string {
     case 'between':
       return 'string';
 
+    case 'url':
+      return 'URL';
+
     case 'bigint':
       return 'bigint';
 
     case 'number':
     case 'integer':
     case 'range':
+    case 'hex':
+    case 'binary':
       return 'number';
 
     case 'boolean':

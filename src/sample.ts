@@ -71,19 +71,19 @@ export function sampleFromMeta(meta: Meta): unknown {
       return {};
 
     case 'base64':
-      return btoa(randomString(8));
+      return randomString(8);
 
     case 'url':
-      return `https://example.com/${randomString(6)}`;
+      return new URL(`https://example.com/${randomString(6)}`);
 
     case 'bigint':
       return BigInt(randomInt(0, 1000000));
 
     case 'hex':
-      return randomInt(0, 255).toString(16);
+      return randomInt(0, 255);
 
     case 'binary':
-      return randomInt(0, 255).toString(2);
+      return randomInt(0, 255);
 
     case 'identity':
       return null;

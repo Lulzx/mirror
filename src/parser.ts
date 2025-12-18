@@ -261,13 +261,13 @@ export function queryString<T extends Record<string, string>>(): Mirror<string, 
         if (eqIndex === -1) {
           // Handle keys without values
           if (pair) {
-            (result as Record<string, string>)[pair] = '';
+            (result as Record<string, string>)[decodeURIComponent(pair)] = '';
           }
         } else {
           const key = pair.slice(0, eqIndex);
           const value = pair.slice(eqIndex + 1);
           if (key) {
-            (result as Record<string, string>)[key] = decodeURIComponent(value);
+            (result as Record<string, string>)[decodeURIComponent(key)] = decodeURIComponent(value);
           }
         }
       }
@@ -281,7 +281,7 @@ export function queryString<T extends Record<string, string>>(): Mirror<string, 
       return (
         '?' +
         entries
-          .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
           .join('&')
       );
     },

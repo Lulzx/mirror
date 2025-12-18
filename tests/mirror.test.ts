@@ -12,6 +12,9 @@ import m, {
   boolean,
   date,
   base64,
+  url,
+  hex,
+  binary,
   route,
   queryString,
   split,
@@ -217,6 +220,12 @@ describe('Constraints', () => {
     expect(() => email.forward('invalid')).toThrow();
   });
 
+  it('pattern is stable with global regex', () => {
+    const p = pattern(/^[a-z]+$/g);
+    expect(() => p.forward('abc')).not.toThrow();
+    expect(() => p.forward('abc')).not.toThrow();
+  });
+
   it('oneOfValues validates enum', () => {
     const status = oneOfValues('active', 'pending', 'done');
     expect(status.forward('active')).toBe('active');
@@ -238,6 +247,21 @@ describe('Constraints', () => {
     expect(opt.forward(undefined)).toEqual(defaultObj);
     expect(opt.backward({ x: 1, y: 2 })).toBe(undefined);
     expect(opt.backward({ x: 1, y: 3 })).toEqual({ x: 1, y: 3 });
+  });
+
+  it('optional deep equality handles Date defaults', () => {
+    const defaultDate = new Date('2024-01-01T00:00:00.000Z');
+    const opt = optional(
+      mirror((x: unknown) => x, (x: unknown) => x),
+      defaultDate
+    );
+
+    expect(opt.backward(new Date('2024-01-01T00:00:00.000Z'))).toBe(undefined);
+
+    const other = new Date('2024-01-02T00:00:00.000Z');
+    const back = opt.backward(other);
+    expect(back).toBeInstanceOf(Date);
+    expect((back as Date).getTime()).toBe(other.getTime());
   });
 
   it('validate runs custom predicate', () => {
@@ -374,6 +398,14 @@ describe('Round-trip Laws', () => {
     expect(number.testSectionLaw(NaN)).toBe(false);
   });
 
+  it('testSectionLaw compares Date values correctly', () => {
+    const broken = mirror<Date, Date>(
+      (d) => d,
+      (d) => new Date(d.getTime() + 1)
+    );
+    expect(broken.testSectionLaw(new Date(0))).toBe(false);
+  });
+
   it('testRetractionLaw method works', () => {
     expect(number.testRetractionLaw('42')).toBe(true);
     expect(number.testRetractionLaw('invalid')).toBe(false);
@@ -430,6 +462,12 @@ describe('Sample and Schema Generation', () => {
     expect(typeof sample).toBe('number');
   });
 
+  it('sample matches primitive output types', () => {
+    expect(url.sample()).toBeInstanceOf(URL);
+    expect(typeof hex.sample()).toBe('number');
+    expect(typeof binary.sample()).toBe('number');
+  });
+
   it('toJsonSchema generates schema', () => {
     const schema = range(0, 100).toJsonSchema();
     expect(schema.type).toBe('number');
@@ -459,6 +497,12 @@ describe('Edge Cases', () => {
   it('queryString handles keys without values', () => {
     const qs = queryString();
     expect(qs.forward('?flag')).toEqual({ flag: '' });
+  });
+
+  it('queryString decodes and encodes keys', () => {
+    const qs = queryString();
+    expect(qs.forward('?a%20b=1')).toEqual({ 'a b': '1' });
+    expect(qs.backward({ 'a b': '1' })).toBe('?a%20b=1');
   });
 
   it('positive has min: 1 in metadata', () => {

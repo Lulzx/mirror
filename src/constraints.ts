@@ -1,29 +1,5 @@
 import { Mirror } from './mirror';
-
-/**
- * Deep equality check for comparing default values
- */
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (a === null || b === null) return false;
-  if (typeof a !== 'object' || typeof b !== 'object') return false;
-
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    return a.every((val, i) => deepEqual(val, b[i]));
-  }
-
-  if (Array.isArray(a) || Array.isArray(b)) return false;
-
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
-  if (keysA.length !== keysB.length) return false;
-
-  return keysA.every(key =>
-    Object.prototype.hasOwnProperty.call(b, key) &&
-    deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
-  );
-}
+import { deepEqual } from './deepEqual';
 
 /**
  * Range constraint for numbers.
@@ -71,6 +47,7 @@ export function pattern(
 ): Mirror<string, string> {
   return new Mirror(
     (s) => {
+      regex.lastIndex = 0;
       if (!regex.test(s)) {
         throw new Error(`String "${s}" does not match pattern ${regex}`);
       }
